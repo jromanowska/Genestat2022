@@ -32,6 +32,7 @@ packageVersion("tidyr")
 packageVersion("readr")
 packageVersion("glmnet")
 
+## If any of the below lines give warnings or errors, please consult your nearest R expert
 ## Plotting some data based on data stored in mtcars
 plot(mpg~hp, data = mtcars, col = cyl, lwd = 2)
 
