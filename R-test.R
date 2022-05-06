@@ -4,26 +4,32 @@
 ## successfully BEFORE the first lecture on May 30
 
 ## Installs necessary packages
-install.packages(pkgs = c("Haplin",
+install.packages(pkgs = c(
+  "Haplin",
 	"dplyr",
 	"tidyr",
 	"readr",
 	"feather",
 	"glmnet",
-	"doParallel"))
+	"doParallel",
+	"strngr",
+	"ggplot2",
+	"naniar",
+	"here")
+)
 if (!requireNamespace("BiocManager", quietly = TRUE)){
 	install.packages("BiocManager")
 }
 BiocManager::install("snpStats", update = FALSE)
 
 ## Loading packages and checking that they are loaded correctly
-## Loading
+## Loading ----
 library(Haplin)
 library(dplyr)
 library(tidyr)
 library(readr)
 library(glmnet)
-## Checking
+## Checking ----
 ## packageVersion should return version the version of the package
 ## If packageVersion returns error or warning, please consult your nearest R expert
 packageVersion("Haplin")
@@ -32,6 +38,7 @@ packageVersion("tidyr")
 packageVersion("readr")
 packageVersion("glmnet")
 
+## Testing ----
 ## If any of the below lines give warnings or errors, please consult your nearest R expert
 ## Plotting some data based on data stored in mtcars
 plot(mpg~hp, data = mtcars, col = cyl, lwd = 2)
