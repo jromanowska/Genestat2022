@@ -18,7 +18,6 @@ library(dplyr)
 library(tidyr)
 library(readr)
 library(stringr)
-# library(janitor)
 library(naniar)
 library(here)
 library(snpStats)
@@ -241,7 +240,7 @@ data_in
 ```{r}
 write_delim(
   data_in,
-  path = here("DAY1", "genetics_R", "data_prep_R.dat"),
+  file = here("DAY1", "genetics_R", "data_prep_R.dat"),
   delim = " ",
   col_names = TRUE
 )
@@ -405,18 +404,13 @@ unique(ped_all$map$chromosome)
 **Hint:** tabulate the `pedigree` column of the family information
 
 ```{r ex-4-3}
-ped_all$fam %>%
-  count(pedigree) %>%
-  nrow()
 
-# or:
-length(table(ped_all$fam))
 ```
 
 4.4 How many of the individuals were affected?
 
 ```{r ex-4-4}
-table(ped_all$fam$affected)
+
 ```
 
 ---
