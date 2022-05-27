@@ -1,0 +1,510 @@
+---
+title: "NORBIS GENESTAT course, R intro"
+author: "Øystein Haaland, Miriam Gjerdevik, Julia Romanowska"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: tactile
+    highlight: github
+    toc: true
+---
+
+# PART 1
+
+> Note: throughout the course, we will mix between the `base` R notation and `tidyverse` notation because it is not always the easiest to use the `tidyverse` way on these genetic data.
+
+```{r read_libs}
+library(dplyr)
+library(tidyr)
+library(readr)
+library(stringr)
+# library(janitor)
+library(naniar)
+library(here)
+library(snpStats)
+```
+
+## SNPs and alleles
+
+1. Read data from file `data_a_intro_R.dat` and save it to object `data_in`:
+
+```{r read_input_data}
+data_in <- read_table(here("DAY1", "genetics_R", "data_a_intro_R.dat"))
+```
+
+2. Look at the data: check the class, the dimensions, and print the first part of the data:
+
+```{r}
+class(data_in)
+data_in
+```
+
+3. Using the data
+
+  + Accessing the column named `cc.status` (0 codes for control and 1 for case)
+
+```{r}
+data_in %>%
+  select(cc.status)
+data_in %>%
+  count(cc.status)
+```
+
+  + Accessing the first SNP
+  
+```{r}
+snp1 <- data_in %>%
+  select(snp_1.1, snp_1.2)
+snp1
+```
+
+  + Tabulating the first SNP
+
+```{r}
+table(snp1$snp_1.1)
+table(snp1$snp_1.2)
+table(snp1)
+```
+
+  + Divide by number of indivdiuals (function `nrow` will count all the rows, i.e., individuals) and check whether it sums up to 100%
+
+```{r}
+table(snp1)/nrow(snp1)
+sum(table(snp1)/nrow(snp1))
+```
+
+  + Rounding to two decimal points - still sums up to 100%!
+
+```{r}
+round(table(snp1)/nrow(snp1), 2)
+sum(round(table(snp1)/nrow(snp1), 2))
+```
+
+  + Tabulate SNP8
+  
+```{r}
+snp8 <- data_in %>%
+  select(snp_8.1, snp_8.2)
+snp8
+table(snp8$snp_8.1)
+table(snp8$snp_8.2)
+table(snp8)
+```
+
+  + `-9` means missing. Replace `-9` with `NA` (not available) in the entire dataset.
+
+```{r}
+data_in[data_in == -9] <- NA
+
+snp8 <- data_in %>%
+  select(snp_8.1, snp_8.2)
+snp8
+```
+
+### Exercise 1
+
+Fill the space between apostrophes with your code and click the green arrow to check how it evaluates.
+
+1.1 Tabulate SNP8 again.
+```{r ex-1-1}
+
+```
+
+1.2 What is the distribution of alleles?
+```{r ex-1-2}
+
+```
+
+1.3 Why does it not sum to 100%?
+
+```{r ex-1-3}
+
+```
+
+---
+
+## Missing data, apply, which, names, any, remove rows and columns from object
+
+1. Set the argument `useNA = "ifany"` to make the distribution of alleles in SNP8 sum up to 100%
+
+```{r}
+table(snp8, useNA = "ifany")/nrow(snp8)
+sum(table(snp8, useNA = "ifany")/nrow(snp8))
+```
+
+2. Find those columns in `data_in` that contain missing data
+
+```{r}
+na_data_in <- is.na(data_in)
+head(na_data_in)
+head(na_data_in)*1
+```
+
+  + Function `is.na` returns `TRUE` or `FALSE` for each value, but we can translate it to 0's and 1's, which is easier to handle when calculating some properties of each SNP.
+
+3. Identify proportion of missing data for each SNP
+
+```{r}
+na_snp <- apply(na_data_in, 2, mean)
+na_snp
+```
+
+We can also use a handy function for this purpose! (See `naniar` package: http://naniar.njtierney.com/)
+
+```{r}
+na_summary <- naniar::miss_var_summary(data_in)
+na_summary
+```
+
+  + Which SNPs have more than 7% missing?
+
+```{r}
+snp_missing_7prcnt <- na_summary %>%
+  filter(pct_miss > 7)
+snp_missing_7prcnt
+```
+
+  + Look at first 10 rows of SNPs with more than 7% missing
+
+```{r}
+names_snps_missing <- snp_missing_7prcnt %>%
+  pull(variable)
+data_in %>% select(all_of(names_snps_missing))
+```
+
+  + Which SNPs have any missing data?
+
+```{r}
+na_summary %>% pull(variable)
+```
+
+  + Remove SNPs with more than 7% missing:
+
+```{r}
+data_in <- data_in %>%
+  select(-all_of(names_snps_missing))
+data_in
+```
+
+### Exercise 2
+
+2.1 Which individuals have any missing data? Hint: `naniar::miss_case_summary`  
+
+```{r ex-2-1}
+indivs_na_summary <- naniar::miss_case_summary(data_in)
+indivs_na_summary
+```
+
+2.2 Keep individuals with less than 10% missing. Hint: First identify the rows with more than 10% missing, and then remove those.
+
+```{r ex-2-2}
+indivs_missing_10prcnt <- indivs_na_summary %>%
+  filter(pct_miss > 10)
+indivs_missing_10prcnt
+data_in <- data_in[-indivs_missing_10prcnt$case, ]
+```
+
+---
+
+## Merging matrices
+
+1. Start with the original dataset
+
+```{r}
+data_in <- read_table(here("DAY1", "genetics_R", "data_a_intro_R.dat"))
+```
+
+2. `data_b_intro_R.dat` contains data on SNP24. Combine the previous dataset and this new SNP (`bind_cols` combines _columnwise_).
+
+```{r}
+snp24 <- read_table(here("DAY1", "genetics_R", "data_b_intro_R.dat"))
+snp24
+data_in
+
+data_in <- data_in %>%
+  bind_cols(snp24)
+data_in
+```
+
+### Exercise 3
+
+3.1 Add extra individuals (rows!) from `data_c_intro_R.dat` (with function `bind_rows`).
+
+```{r ex-3-1}
+extra_indivs <- read_table(here("DAY1", "genetics_R", "data_c_intro_R.dat"))
+extra_indivs
+data_in
+
+data_in <- data_in %>%
+  bind_rows(extra_indivs)
+data_in
+
+```
+
+---
+
+## Save and load objects
+
+- `write_delim` writes a data.frame, tibble, or matrix into a text-formatted file.
+- `save` saves objects (not only matrices) to a binary file, readable by R with the `load` function.
+- `ls` function shows what objects are currently loaded into memory.
+
+```{r}
+write_delim(
+  data_in,
+  path = here("DAY1", "genetics_R", "data_prep_R.dat"),
+  delim = " ",
+  col_names = TRUE
+)
+
+save(data_in, file = here("DAY1", "genetics_R", "data_in.RData"))
+rm(data_in)
+ls()
+load("data_in.RData")
+ls()
+```
+
+---
+
+## Save and load workspace.
+
+This saves the entire content of the memory, so that one can get back to work where they'd finished. Note that this does not re-load libraries, so one needs to run all the necessary `library` commands before or after loading a new workspace.
+
+```{r, eval=FALSE}
+save.image("genestat.RData")
+
+load("genestat.RData")
+```
+
+----
+
+# PART 2
+
+We are now starting to work on real genotype data!
+
+PLINK (Will get back to this in other lectures)
+
+Input files: `data.bed`, `data.bim`, `data.fam`. _Not available to you!_
+`plink --bfile data --alleleACGT --recode --out data`
+The output is found in `pres.ped` and `pres.map`. _Available to you!_
+
+The files `data.ped` and `data.map` contain information about the genotype and phenotype, and about the SNPs, respectively, for a dataset with families (mother, father and a child), where the child had an oral cleft. 
+
+1. Show the first 10 lines of `data.map`
+  
+```{r}
+read_table(
+  here("DAY1", "genetics_R", "data.map"),
+  col_names = FALSE
+)
+```
+
+2. Show the first 10 lines of `data.ped`
+
+```{r}
+read_table(
+  here("DAY1", "genetics_R", "data.ped"),
+  col_names = FALSE,
+  n_max = 20
+)
+```
+
+PED-format:
+
+FAMILY_ID | ID_CHILD | ID_DAD | ID_MOM | SEX | CC | GENOTYPES 
+----------|----------|--------|--------|-----|----|-----------
+1         | 1_1      | 1_3    | 1_2    | 2   | 1  | G G T A A T C G C G G A ...
+1         | 1_2      | 0      | 0      | 2   | 0  | G G T A A T G G G G A A ...
+1         | 1_3      | 0      | 0      | 1   | 1  | G G T A A T C G C C G A ...
+2         | 2_1      | 2_3    | 2_2    | 1   | 0  | G G T A A T G G C G G A ...
+2         | 2_2      | 0      | 0      | 2   | 0  | G G A A T T G G G G A A ...
+2         | 2_3      | 0      | 0      | 1   | 1  | 0 0 0 0 0 0 0 0 0 0 0 0 ...
+
+
+## Reading a PED file with snpStats
+
+Read ped-file into R
+
+```{r}
+ped_all <- read.pedfile(
+  file = here("DAY1", "genetics_R", "data.ped"),
+  snps = here("DAY1", "genetics_R", "data.map"),
+  which = 2 # which column contains the loci names
+)
+```
+
+## Look at the data
+
+1. Structure of the data
+
+```{r}
+str(ped_all)
+```
+
+2. Renaming columns to match what we have in the `.map` file
+
+```{r}
+head(ped_all$map)
+ped_all$map <- rename(
+  ped_all$map,
+  chromosome = "V1",
+  position = "V3"
+)
+head(ped_all$map)
+```
+
+3. Renaming rows to match what we have in the `.map` file
+
+```{r}
+head(rownames(ped_all$map), 50)
+rownames(ped_all$map) <- ped_all$map$snp.names
+head(ped_all$map)
+```
+
+4. Look at structure again
+
+```{r}
+str(ped_all)
+```
+
+5. Phenotype data (`fam`) contains information about individuals: ID, sex, case or control.
+
+> NOTE: snpStats codes `0` as `NA` in case/control status column, so we need to fix it.
+
+```{r}
+head(ped_all$fam)
+ped_all$fam$affected[
+  is.na(ped_all$fam$affected)
+  ] <- 0
+head(ped_all$fam)
+```
+
+6. Check the number of individuals
+
+```{r}
+nrow(ped_all$fam)
+```
+
+7. Tabulate the individuals' gender
+
+```{r}
+table(ped_all$fam$sex)
+```
+
+8. Get the chromosome names
+
+```{r}
+unique(ped_all$map$chromosome)
+```
+
+### Exercise 4
+
+4.1 Tabulate the chromosome names.
+
+```{r ex-4-1}
+
+```
+
+4.2 What are the dimensions of the genotype data? Are the individuals represented by columns or rows? (Hint: check the structure of `ped_all` and print the `genotypes` object)
+
+```{r ex-4-2}
+
+```
+
+4.3 Check how many _families_ are in the data?
+
+**Hint:** tabulate the `pedigree` column of the family information
+
+```{r ex-4-3}
+ped_all$fam %>%
+  count(pedigree) %>%
+  nrow()
+
+# or:
+length(table(ped_all$fam))
+```
+
+4.4 How many of the individuals were affected?
+
+```{r ex-4-4}
+table(ped_all$fam$affected)
+```
+
+---
+
+## Extract children, chromosome and SNPs
+
+1. Find all the individuals with an ID ending with `_1` (these are children).
+
+```{r}
+head(ped_all$fam, 21)
+children <- ped_all$fam %>%
+  filter(str_ends(member, "_1"))
+head(children, 20)
+```
+
+2. Make a new object with children only
+
+```{r}
+ped_child_gen <- ped_all$genotypes[children$member,]
+ped_child_gen
+str(ped_child_gen)
+ped_children <- list(genotypes = ped_child_gen, 
+                  fam = children, 
+                  map = ped_all$map)
+str(ped_children)
+```
+
+3. Make a new object with chromosome 1 only
+
+* check which SNPs are in chromosome 1
+
+```{r}
+snps_chrom1 <- ped_all$map %>%
+  filter(chromosome == "1")
+head(snps_chrom1)
+```
+
+* take only those SNPs from the genotype matrix
+
+```{r}
+ped_children$genotypes <- ped_children$genotypes[, snps_chrom1$snp.names]
+ped_children$map <- snps_chrom1
+str(ped_children)
+```
+
+4. Make a new object with first ten SNPs only
+
+```{r}
+ped_children_first10snps <- ped_children$genotypes[, 1:10]
+ped_children_first10snps
+```
+
+5. Make a new object with the following SNPs: rs12, rs90, rs93, rs107
+
+```{r}
+head(colnames(ped_children$genotypes))
+ped_children_selected_snps <- ped_children$genotypes[,
+  colnames(ped_children$genotypes) %in% c("rs12", "rs90", "rs93", "rs107")]
+ped_children_selected_snps
+```
+
+### Exercise 5
+
+5.1 How many _children_ were affected?
+
+```{r ex-5-1}
+```
+
+5.2 Create an object `mothers` with data for mothers only, starting from `ped_all`. Hint: ID of mothers end with `_2`
+
+```{r ex-5-2}
+```
+
+5.3 From this new matrix, remove the following SNPs: rs12, rs90
+
+**Hint:** exclamation mark `!` gives a negation of a boolean operator
+
+```{r ex-5-3}
+```
+

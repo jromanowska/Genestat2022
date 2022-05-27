@@ -1,0 +1,300 @@
+---
+title: "Reading data in Haplin"
+author: "Julia Romanowska"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: tactile
+    highlight: github
+    toc: true
+---
+
+```{r setup, include=FALSE}
+library(readr)
+library(dplyr)
+library(tibble)
+library(here)
+library(snpStats)
+library(Haplin)
+
+exmpls.dir <- system.file("extdata", package = "Haplin")
+exmpl.file1 <- file.path(exmpls.dir, "HAPLIN.trialdata.txt")
+exmpl.file2 <- file.path(exmpls.dir, "exmpl_data.ped")
+```
+
+# Reading the data into Haplin
+
+Haplin reads data in two formats:
+
+1. Haplin's own text file format;
+
+2. PLINK's PED format.
+
+Let's check how does the Haplin format look like:
+
+```{r}
+haplin.data <- read_delim(exmpl.file1, delim = " ", col_names = FALSE)
+haplin.data
+```
+
+Both types of data are read in through the use of `genDataRead` function:
+
+```{r}
+my.ped.data <- genDataRead(file.in = exmpl.file2, file.out = "my_ped_data",
+  dir.out = ".", format = "ped")
+my.haplin.data <- genDataRead(file.in = exmpl.file1,
+  file.out = "my_haplin_data", dir.out = ".", format = "haplin", n.vars = 0)
+```
+
+The function reads in all the data in the file, creates `ff` objects to store the genetic information and `data.frame` to store covariate data (if any). These objects are saved in `.RData` and `.ffData` files, which can be later on easily uploaded to R (with `genDataLoad`) and re-used.
+	
+_CAUTION:_ This can take a long time for large datasets (such as from GWAS analysis, e.g., reading in a 7 GB file will take ca.15 minutes), however, this needs to be run only once and then, the next time you need to use the data, use the `genDataLoad` function (see below). Be careful NOT TO DELETE the output files!
+	
+The `genDataRead` function returns a list object with three elements:
+
+*  _cov.data_ - a `data.frame` with covariate data (if available in the input file);
+*  _gen.data_ - the genetic part of data (in format of a list of ff matrices);
+*  _aux_ - a list with auxiliary information, used internally in Haplin.
+
+The above function reads in also any additional covariate data the user has through the parameter `cov.file.in`:
+
+```{r}
+my.haplin.data2 <- genDataRead(file.in = exmpl.file1, file.out = "my_haplin_data_cov",
+  cov.file.in = file.path(exmpls.dir, "add_cov_data2.dat"),
+  dir.out = ".", format = "haplin", n.vars = 0)
+```
+
+The file with the additional information should have a header with names of the
+data columns, or you should specify argument `cov.header`.
+  
+To see all the available arguments and usage examples, type:
+
+```{r eval=FALSE}
+?genDataRead
+```
+
+(this works also with any other function)
+
+# Accessing the information in the loaded data
+
+The object created by `genDataRead` includes a lot of information. We have created functions that will help the user to navigate it.
+
+## Displaying and extracting phenotype information
+
+First of all, when you type in the name of the object, a short summary will be displayed:
+
+```{r show_summary}
+my.ped.data
+```
+
+If you want to show and/or extract part of phenotype information, you can use the `showPheno` function:
+
+```{r showPheno_demo}
+# by default - showing first 5 entries:
+showPheno(my.ped.data)
+# getting all the info:
+head(showPheno(my.ped.data, n = "all"), n = 20)
+showPheno(my.ped.data, from = 4, to = 15)
+# show information about females only:
+head(showPheno(my.ped.data, sex = 2, n = "all"), n = 20)
+```
+
+The output can be saved to an object:
+
+```{r showPheno_demo2}
+females.pheno <- showPheno(my.ped.data, sex = 2)
+head(females.pheno)
+```
+
+With the functions `nindiv` and `nfam`, you can get the number of individuals or number of families in your data:
+
+```{r nindiv_demo}
+nindiv(my.ped.data)
+nfam(my.ped.data)
+```
+
+Note that the `nfam` function assumes that your dataset is from a triad or dyad study, i.e., includes information on the child and at least one parent.
+
+## Displaying and extracting genotype information
+
+The function `nsnps` will tell us how many markers/SNPs there is in the data. Be careful since per default it assumes that the data is triad data (i.e., mother, father, and child were genotyped), so if your data is from a case-control study, be sure to specify that with argument `design = "cc"`.
+
+```{r nsnps}
+nsnps(my.ped.data)
+nsnps(my.haplin.data)
+nsnps(my.haplin.data, design = 'cc')
+```
+
+To get the SNP names use:
+
+```{r showSNPnames}
+showSNPnames(my.ped.data) # by default - showing only first 5 SNPs
+showSNPnames(my.ped.data, from = 12, to = 31)
+```
+
+To extract and/or show genotypes for specific individuals or markers, use the `showGen` function:
+
+```{r showGen_demo}
+showGen(my.ped.data, markers = c(10,15,121)) # by default - showing first 5 entries
+showGen(my.ped.data, from = 31, to = 231)
+```
+
+As above, this output can be saved to an object:
+
+```{r showGen_demo2}
+subset.genes <- showGen(my.ped.data, from = 31, to = 231, markers = c(10,15,121))
+subset.genes
+```
+
+_CAUTION:_ Note that these functions work only with objects resulting from `genDataRead`, and not `genDataPreprocess`, as the preprocessing disturbs the coding of the data, thus making the output not easy to understand.
+
+# Choosing a subset of data {#subset}
+
+If you know that you want to focus your analysis on a certain region of the entire SNP set, or perhaps you're impatient and want to check out Haplin without waiting a long time for the preprocessing to finish, you can easily choose a subset of the data to pre-process and analyze. This can be done with the command:
+
+```{r}
+my.ped.data.subset <- genDataGetPart(
+  data.in = my.ped.data,
+  markers = c(3:15,22),
+  design = "cc",
+  file.out = "my_ped_data_subset",
+  dir.out = "."
+)
+my.ped.data.subset
+```
+
+This function allows you to specify the subset in various ways:
+
+*  __markers__ - numeric vector with numbers indicating which markers to choose;
+*  __indiv.ids__ - numeric vector giving IDs of individuals. _CAUTION:_ in a standard PED file, individual IDs are not unique, so this will select all individuals with given numbers;
+*  __rows__ - numeric vector giving the positions - this will select only these rows;
+*  __cc__ - one or more values to choose based on the case-control status ('cc' column);
+*  __sex__ - one or more values to choose based on the 'sex' column;
+*  __...__ - if any additional covariate data are available in `data.in`, the user can choose based on values of these.
+
+If you give a combination of these parameters, the result will be the intersection of the subsets defined by each of the parameters alone. The subset is then available in the `my.ped.data.subset` object and written to `file.out` file(s). These can be loaded and re-used multiple times.
+
+## Useful shortcut functions
+
+To make it easier to choose certain subsets of data, we created the following functions:
+
+*  `getChildren` - extracts only the children's data from the triad-design data;
+*  `getMothers` and `getFathers` - extracts only the fathers or mothers, respectively;
+*  `getFullTriads` - extracts only the full families, if the input data contains also dyads.
+
+## Example
+
+We will do some simple QC using data from Day 1 and based on that, we will choose a subset of the data.
+
+```{r}
+data_dir <- here("DAY1", "genetics_R")
+all_gen_data <- read.pedfile(file = file.path(data_dir, "data.ped"),
+                        snps = file.path(data_dir, "data.map"), which = 2)
+str(all_gen_data)
+all_gen_data_gen <- all_gen_data$genotypes
+all_gen_data_gen
+
+qc_all <- row.summary(all_gen_data_gen)
+summary(qc_all)
+
+ok_call_rate <- qc_all$Call.rate >= 0.95
+all_gen_data_ok <- list(
+  genotypes = all_gen_data$genotypes[ok_call_rate,],
+  fam = all_gen_data$fam[ok_call_rate,],
+  map = all_gen_data$map
+  )
+str(all_gen_data_ok)
+
+qc_all_marker <- col.summary(all_gen_data_ok$genotypes)
+summary(qc_all_marker)
+
+ok_MAF <- qc_all_marker$MAF >= 0.05
+all_gen_data_ok <- list(
+  genotypes = all_gen_data_ok$genotypes[,ok_MAF],
+  fam = all_gen_data_ok$fam,
+  map = all_gen_data_ok$map[ok_MAF,]
+)
+str(all_gen_data_ok)
+
+qc_all_marker2 <- col.summary(all_gen_data_ok$genotypes)
+ok_markers <- qc_all_marker2$Call.rate >= 0.99
+sum(ok_markers)
+length(ok_markers)
+```
+
+Choosing the subset
+
+```{r}
+raw_all <- genDataRead(
+  file.in = file.path(data_dir, "data.ped"),
+  format = "ped",
+  map.file = file.path(data_dir, "data1.map")
+)
+raw_all
+
+qc_all <- genDataGetPart(
+  raw_all,
+  design = "cc",
+  rows = which(ok_call_rate),
+  markers = which(ok_MAF),
+  file.out = "qc_all_ok1"
+)
+qc_all <- genDataGetPart(
+  qc_all,
+  design = "cc",
+  markers = which(ok_markers),
+  file.out = "qc_all_ok"
+)
+qc_all
+
+qc_all_triads <- getFullTriads(qc_all, file.out = "qc_all_ok_triads")
+qc_all_triads
+```
+
+Since we've removed some markers due to missing data, we need to create
+a new map file.
+
+```{r}
+orig_map <- read_delim(file.path(data_dir, "data1.map"), delim = " ")
+orig_map
+new_map <- orig_map %>%
+  filter(snpname %in% showSNPnames(qc_all_triads, n = "all"))
+new_map
+write_delim(
+  new_map,
+  file = "qc_all.map",
+  delim = " ",
+  col_names = TRUE
+)
+```
+
+# Preparing your data
+
+After loading the data, it is necessary to pre-process it to the internal format used by Haplin. This is done by evoking the command:
+
+```{r}
+my_prepared_ped_data <- genDataPreprocess(
+  data.in = qc_all_triads,
+  map.file = "qc_all.map",
+  design = "triad",
+  file.out = "qc_all_preproc"
+)
+my_prepared_ped_data
+showSNPnames(my_prepared_ped_data)
+```
+
+_NOTE:_ This action can be very time-consuming for large datasets (e.g., estimated time for ca.45,000 SNPs and 1,600 individuals, a PED file of ca.700MB, is ca.6 minutes on a 7-core CPU). However, this needs to be done only once and the output, stored in small files, can be used for the subsequent analysis repeatedly.
+	
+This will also create `.RData` and `.ffData` files, which take much less space than the input PED files. Be careful not to delete these files, as they can be re-used by simply loading into R (the `genDataLoad` function) right before Haplin analysis.
+	
+# Re-using the data
+
+_IMPORTANT:_ Remember that each time you start a new R session, you need to load the data into the memory with the command:
+
+```{r eval=FALSE}
+my_prepared_ped_data <- genDataLoad(filename = "my_prepared_ped_data")
+```
+
+This takes much less time than re-reading and running the data preparations!
+
+
