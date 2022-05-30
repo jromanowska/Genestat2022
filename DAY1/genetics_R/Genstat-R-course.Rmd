@@ -174,7 +174,9 @@ data_in %>% select(all_of(names_snps_missing))
   + Which SNPs have any missing data?
 
 ```{r}
-na_summary %>% pull(variable)
+na_summary %>%
+  filter(pct_miss > 0) %>%
+  pull(variable)
 ```
 
   + Remove SNPs with more than 7% missing:
