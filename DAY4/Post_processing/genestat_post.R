@@ -1,20 +1,17 @@
 ## NORBIS GENESTAT COURSE
 
-setwd("DAY3/Post_processing/")
-source("../Reading_data_in_Haplin/helper_functions.R")
-
 #############################
 ## POST-PROCESSING OF DATA ##
 #############################
 
-## Open project Genstat2020.Rproj
-
-## Loading packages (if not already loaded)
-## Install Haplin from .tar.gz file
-# install.packages("Haplin_7.16.2.tar.gz",type = "source", repos = NULL)
-## Install Haplin from CRAN
-if(!"Haplin"%in%installed.packages()) install.packages("Haplin")
+## Open project Genstat2022.Rproj
+library(here)
 library(Haplin)
+library(ggplot2)
+library(tidyverse)
+
+setwd(here("DAY4","Post_processing"))
+source(here("DAY4","Reading_data_in_Haplin","helper_functions.R"))
 
 ## Load data from before lunch
 qc_all <- genDataLoad(filename = "qc_all_preproc", dir.in = "../Reading_data_in_Haplin")
@@ -27,18 +24,6 @@ qc_all
 ##
 ## b) What is the number of SNPs? 
 ##
-
-## Quality control. Reminder
-## Marker == SNP
-## We want to include SNPs and individuals of high quality in the analyses
-## Step 1. Crude analysis
-## Remove markers and individuals with a call rate < 0.2 and 0.5
-##  extr.call = 0.2 and extr.perid.call=0.5
-##  Does not consider, e.g., Hardy-Weinberg equilibrium (HWE) or minor allele frequency (MAF)
-## Step 2. Thorough analysis
-## Repeat Step 1, but add more criteria
-## callrate = 0.99 sets the acceptable call rate for a marker
-## perid.call = 0.95 sets the acceptable call rate for an individual
 
 ## Run haplin
 haplinRuns <- haplinSlide(data=qc_all,winlength=1,response="mult",reference="ref.cat")
@@ -76,8 +61,8 @@ plot(haplinRuns, plot.signif.only = TRUE, signif.thresh = 0.01)
 #######################################################################
 ## Bioconductor is not a "normal" package
 ## Installing qvalue
-if(!"BiocManager"%in%installed.packages()) install.packages("BiocManager")
-BiocManager::install("qvalue", update = FALSE)
+if (!require("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+BiocManager::install(version = "3.14") ## 3.14 for R version 4.1. R version 4.2 requires 3.15
 
 ## Loading qvalue
 library(qvalue)
@@ -117,28 +102,16 @@ head(pRR.sort,20)
 ## Exercise
 ## a) Create new vector, ps, with the p-values from pRR.results
 ##
-ps <- pRR.result$RR.p.value
 ## b) Add new SNP with a p-value of 0.00001 to ps. Name the new SNP "rs1"
 ##
-ps <- c(ps,.00001)
-names(ps) <- c(pRR.result$marker,"rs1")
 ## c) Create new vector, qs, with the q-values from ps
 ##
-qs <- qvalue(ps)
 ## d) Write summary(qs) and compare with summary(q)
 ##
-summary(qs)
-summary(q)
 ## e) Make a vector, q.sort, where qs is sorted according to ps, and 
 ##     compare with pRR.sort
-q.sort <- qs$qvalues[order(ps)][1:21]
-q.sort
-pRR.sort$q[1:20]
 ##
 ## f) Add red points ("new" q-values vs. p-values) to the "old" plot
-plot(x = pRR.result$RR.p.value, y = pRR.result$q, xlab = "p", ylab = "q",
-     pch = 20, ylim = 0:1, xlim = 0:1)
-points(ps,qs$qvalues,col=2,pch=20)
 
 
 #######################################################################
@@ -183,18 +156,10 @@ text(x = x[red], y = y[red],labels = pRR.result$marker[red],pos=4,col="red")
 ## Exercise
 ## a) Create new vector, RRs, with the RRs from pRR.results
 ##
-RRs <- pRR.result$RR.est.
 ## b) Add new SNP with RR=3 RRs. Name the new SNP "rs1", and make sure it 
 ##    is in the position of the corresponding p-value
 ##
-RRs <- c(RRs,3)
-names(RRs) <- c(pRR.result$marker,"rs1")
 ## c) Create a volcano plot using RRs and ps. Do not add xlim or ylim. 
-x <- log2(RRs)
-y <- -log10(ps)
-red <- y>1.5&abs(x)>.5
-plot(x = x, y = y, xlab = "log2(RR)", ylab = "-log10(p)",col=1+(red))
-text(x = x[red], y = y[red],labels = names(RRs)[red],pos=4,col="red")
 
 
 
