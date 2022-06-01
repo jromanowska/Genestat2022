@@ -2,3 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
+*.ffData
+*.RData
+*.pptx
+*.feather
+*.bed
