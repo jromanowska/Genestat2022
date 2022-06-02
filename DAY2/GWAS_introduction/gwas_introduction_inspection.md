@@ -34,7 +34,27 @@ system, use the `ìnstall_packages` command to install them.
     library(parallel) # A package to run tasks in parallel
     library(glue) # A package to glue variables in strings
 
+    library(curl) # A package to connect to urls
+
+    ## Using libcurl 7.68.0 with OpenSSL/1.1.1f
+
+    library(httr) # A package to run http queries
+
+    ## 
+    ## Attaching package: 'httr'
+
+    ## The following object is masked from 'package:curl':
+    ## 
+    ##     handle_reset
+
+    library(rjson) # A package to handle json files
+
+    library(LDlinkR) # A package to query LDlink
+    library(phenoscanner) # A package to query phenoscanner  NOTE: phenoscanner needs to be installed from https://github.com/phenoscanner/phenoscanner
+
     library(ggplot2) # A package to plot data
+    library(scico) # A package of scientific color palettes
+    library(RColorBrewer) # A package of color palettes
 
     library(conflicted) # A package to manage namespace conflicts
 
@@ -45,6 +65,10 @@ system, use the `ìnstall_packages` command to install them.
 
     # Set the theme for plots
     theme_set(theme_bw(base_size = 13))
+
+    # Ensembl rest APIs
+    server <- "https://rest.ensembl.org"
+    server37 <- "https://grch37.rest.ensembl.org"
 
 ## Inspecting GWAS summary statistics
 
@@ -258,13 +282,13 @@ Build a histogram of allele frequencies.
         bins = 50
       ) +
       scale_y_continuous(
-        name = "# Variants"
-      ) +
-      scale_x_continuous(
-        name = "Effect allele frequency [%]",
+        name = "# Variants",
         expand = expansion(
           mult = c(0, 0.05)
         )
+      ) +
+      scale_x_continuous(
+        name = "Effect allele frequency [%]"
       )
 
 ![](gwas_introduction_inspection_files/figure-markdown_strict/unnamed-chunk-5-1.png)
@@ -382,3 +406,263 @@ Plot the effect size estimate against the effect allele frequency.
       )
 
 ![](gwas_introduction_inspection_files/figure-markdown_strict/unnamed-chunk-8-1.png)
+
+## Zooming in on a specfic signal
+
+We will now focus on the region around 123 Mbp.
+
+    region_data <- read.table(
+      file = "resources/region_data.gz",
+      header = T,
+      sep = "\t",
+      stringsAsFactors = F
+    )
+
+    # Build plot
+    ggplot(
+      data = region_data
+    ) + 
+      geom_point(
+        mapping = aes(
+          x = pos/10e6,
+          y = -log10(p)
+        ),
+        size = 1
+      ) +
+      scale_x_continuous(
+        name = "Position [Mbp]",
+        expand = c(0, 0)
+      ) +
+      scale_y_continuous(
+        name = "P-value [-log10]",
+        expand = expansion(
+          mult = c(0, 0.05)
+        )
+      ) + 
+      theme(
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()
+      )
+
+![](gwas_introduction_inspection_files/figure-markdown_strict/unnamed-chunk-9-1.png)
+
+Find the rsid of the variant with best p-value in that region.
+
+    best_rsid <- region_data$rsid[which.min(region_data$p)]
+
+*Look for the variants in LD with this SNP using LDlink - how would you
+do this for hundreds of variants?*
+
+Find the variants in LD with this variant using LDlink.
+
+    window <- "500000"
+    token <- "b823fa70d49d" # Note: you should get your own authentification token from LDlink
+
+    ld_resutls <- LDproxy(
+      snp = best_rsid, 
+      pop = "CEU", 
+      r2d = "r2", 
+      token = token
+    ) %>% 
+      clean_names()
+
+    ## 
+    ## LDlink server is working...
+
+Annotate the LD with the lead SNP on the plot and add recombination
+rates.
+
+    # Merge LD values
+
+    r2_values <- ld_resutls %>% 
+      select(
+        rsid = rs_number, ld = r2
+      )
+
+    plot_data <- region_data %>% 
+      left_join(
+        r2_values,
+        by = "rsid"
+      ) %>% 
+      mutate(
+        ld = ifelse(is.na(ld), 0, ld),
+        ldFactor = case_when(
+          ld < 0.2 ~ "[0.0  0.2]",
+          ld >= 0.2 & ld < 0.4 ~ "[0.2  0.4]",
+          ld >= 0.4 & ld < 0.6 ~ "[0.4  0.6]",
+          ld >= 0.6 & ld < 0.8 ~ "[0.6  0.8]",
+          ld >= 0.8 ~ "[0.8  1.0]"
+        ),
+        ldFactor = factor(ldFactor, c("[0.0  0.2]", "[0.2  0.4]", "[0.4  0.6]", "[0.6  0.8]", "[0.8  1.0]"))
+      ) %>% 
+        arrange(
+            ldFactor
+        )
+
+    lead_snp <- plot_data %>% 
+      filter(
+        rsid == best_rsid
+      )
+
+    bestP <- max(-log10(lead_snp$p))
+
+    # Get recombination rates
+
+    recombination_rates <- read.table(
+      file = "resources/recombination_rates/genetic_map_GRCh37_chr3.txt.gz",
+      header = T,
+      sep = "\t",
+      stringsAsFactors = F
+    ) %>% 
+      clean_names() %>% 
+      filter(
+        position_bp >= min(plot_data$pos) & position_bp <= max(plot_data$pos)
+      ) %>% 
+      mutate(
+        recombination_rate_scaled = rate_c_m_mb / max(rate_c_m_mb) * bestP * 2 / 3
+      )
+
+    # Build plot
+    ggplot() + 
+      geom_line(
+        data = recombination_rates,
+        mapping = aes(
+          x = position_bp,
+          y = recombination_rate_scaled
+        ),
+        col = "blue3"
+      ) +
+      geom_point(
+      data = plot_data,
+        mapping = aes(
+          x = pos,
+          y = -log10(p),
+          col = ldFactor
+        ),
+        size = 1
+      ) +
+        geom_point(
+            data = lead_snp,
+            mapping = aes(
+          x = pos,
+          y = -log10(p)
+            ),
+            shape = 18,
+            col = "black",
+            size = 4
+        ) +
+        geom_point(
+            data = lead_snp,
+            mapping = aes(
+          x = pos,
+          y = -log10(p)
+            ),
+            shape = 18,
+            col = "red3",
+            size = 3
+        ) +
+      scale_x_continuous(
+        name = "Position",
+        expand = c(0, 0)
+      ) +
+      scale_y_continuous(
+        name = "P-value [-log10]",
+        expand = expansion(
+          mult = c(0, 0.05)
+        )
+      ) +
+        scale_color_manual(
+            name = "R2",
+            values = brewer.pal(9, "Set1")[c(9, 2, 3, 5, 1)],
+            guide = guide_legend(
+                override.aes = list(
+                    size = 4
+                )
+            )
+        )  + 
+      theme(
+        legend.position = "top",
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()
+      )
+
+![](gwas_introduction_inspection_files/figure-markdown_strict/unnamed-chunk-12-1.png)
+
+*Look for the possible consequences of this variant in Ensembl - how
+would you do this for hundreds of variants?*
+
+Do this with the Ensembl API.
+
+    ext <- "/vep/human/id"
+    body <- paste0('{ "ids" : ["', best_rsid, '" ] }') # Note that you can query multiple variants, just separate their ids with commas
+
+    r <- POST(
+      url = paste(server37, ext, sep = ""), 
+      content_type("application/json"), 
+      accept("application/json"), 
+      body = body
+    )
+
+    response_code <- status_code(r)
+
+    if (response_code != 200) {
+      
+      stop(paste0("Ensembl query failed for ", best_rsid, ". Status: ", responseCode, "."))
+      
+    }
+
+    vep_results <- fromJSON(toJSON(content(r)))
+
+*Do you find the possible consequences?*
+
+Similarly, query the genes in this region.
+
+    chromosome <- 3
+    position <- region_data$pos[region_data$rsid == best_rsid]
+    position_start <- max(position - 500000, 0)
+    position_end <- position + 500000
+
+    region <- paste0(chromosome, ":", position_start, "-", position_end)
+
+    ext <- paste0("/overlap/region/human/", region, "?feature=gene")
+
+    r <- GET(
+      url = paste(server37, ext, sep = ""), 
+      content_type("application/json"), 
+      accept("application/json")
+    )
+
+    response_code <- status_code(r)
+
+    if (response_code != 200) {
+      
+      stop(paste0("Ensembl query failed for ", best_rsid, ". Status: ", responseCode, "."))
+      
+    }
+
+    gene_results <- fromJSON(toJSON(content(r)))
+
+*What is the nearest gene?*
+
+Now, see whether this variant was associated with other traits using
+phenoscanner.
+
+    phenoscanner_results <- phenoscanner(
+      snpquery = best_rsid,
+      proxies = "EUR",
+      pvalue = 5e-8
+    )
+
+    ## PhenoScanner V2
+    ## Cardiovascular Epidemiology Unit
+    ## University of Cambridge
+    ## Email: phenoscanner@gmail.com
+    ## 
+    ## Information: Each user can query a maximum of 10,000 SNPs (in batches of 100), 1,000 genes (in batches of 10) or 1,000 regions (in batches of 10) per hour. For large batch queries, please ask to download the data from www.phenoscanner.medschl.cam.ac.uk/data.
+    ## Terms of use: Please refer to the terms of use when using PhenoScanner V2 (www.phenoscanner.medschl.cam.ac.uk/about). If you use the results from PhenoScanner in a publication or presentation, please cite all of the relevant references of the data used and the PhenoScanner publications: www.phenoscanner.medschl.cam.ac.uk/about/#citation.
+    ## 
+    ## [1] "rs11708067 -- queried"
+
+    View(phenoscanner_results$results)
+
+*How many other traits are associated with this variant?*
