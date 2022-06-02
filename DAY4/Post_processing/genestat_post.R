@@ -14,11 +14,11 @@ library(tidyverse)
 if (!require("BiocManager", quietly = TRUE)) install.packages("BiocManager")
 BiocManager::install(version = "3.14") ## 3.14 for R version 4.1. R version 4.2 requires 3.15
 
-setwd(here("DAY4","Post_processing"))
-source(here("DAY4","Reading_data_in_Haplin","helper_functions.R"))
-
 ## Load data from before lunch
-qc_all <- genDataLoad(filename = "qc_all_preproc", dir.in = "../Reading_data_in_Haplin")
+qc_all <- genDataLoad(
+  filename = "qc_all_preproc",
+  dir.in = here("DAY2", "Reading_data_in_Haplin")
+)
 
 ## Look at data
 qc_all
