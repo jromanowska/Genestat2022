@@ -9,6 +9,10 @@ library(here)
 library(Haplin)
 library(ggplot2)
 library(tidyverse)
+## Bioconductor is not a "normal" package
+## Installing qvalue
+if (!require("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+BiocManager::install(version = "3.14") ## 3.14 for R version 4.1. R version 4.2 requires 3.15
 
 setwd(here("DAY4","Post_processing"))
 source(here("DAY4","Reading_data_in_Haplin","helper_functions.R"))
@@ -59,10 +63,6 @@ plot(haplinRuns, plot.signif.only = TRUE, signif.thresh = 0.01)
 ## Storey & Tibshirani. Statistical significance for genomewide studies
 ## PNAS 2003
 #######################################################################
-## Bioconductor is not a "normal" package
-## Installing qvalue
-if (!require("BiocManager", quietly = TRUE)) install.packages("BiocManager")
-BiocManager::install(version = "3.14") ## 3.14 for R version 4.1. R version 4.2 requires 3.15
 
 ## Loading qvalue
 library(qvalue)
