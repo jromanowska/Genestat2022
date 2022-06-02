@@ -1,0 +1,25 @@
+PLINK v1.90b6.21 64-bit (19 Oct 2020)
+Options in effect:
+  --bfile 22
+  --extract list22_v2.txt
+  --out 22
+  --recode
+
+Hostname: home
+Working directory: /home/ubuntu/GENESTAT
+Start time: Mon Nov 30 12:17:31 2020
+
+Random number seed: 1606738651
+16013 MB RAM detected; reserving 8006 MB for main workspace.
+494328 variants loaded from .bim file.
+1092 people (0 males, 0 females, 1092 ambiguous) loaded from .fam.
+Ambiguous sex IDs written to 22.nosex .
+--extract: 37 variants remaining.
+Using 1 thread (no multithreaded calculations invoked).
+Before main variant filters, 1092 founders and 0 nonfounders present.
+Calculating allele frequencies... done.
+37 variants and 1092 people pass filters and QC.
+Note: No phenotypes present.
+--recode ped to 22.ped + 22.map ... done.
+
+End time: Mon Nov 30 12:17:31 2020
