@@ -80,6 +80,7 @@ class: left, inverse, bottom
     - EWAS catalog (http://www.ewascatalog.org/) by Univ.of Bristol, UK
     - mQTL db (http://www.mqtldb.org/)
     - OpenTarget (https://www.targetvalidation.org/)
+    - ...
 
 ???
 
@@ -114,8 +115,7 @@ Let's assume then that we found a decent set of SNPs or CpGs that are somehow si
 - **genes => GO-terms, biological pathways**
 
     - enrichment: gProfiler (online https://biit.cs.ut.ee/gprofiler/gost)    
-    ExpressionAtlas (https://www.ebi.ac.uk/gxa/genesetenrichment)    
-    clusterProfiler (R package: https://guangchuangyu.github.io/software/clusterProfiler/)
+    shinyGO (http://bioinformatics.sdstate.edu/go/)
     - pathways: ConsensuPathDB (http://consensuspathdb.org/)    
     Reactome (https://reactome.org/)
 
@@ -140,12 +140,12 @@ We might also check what is already known about this SNP or gene.
 - **regulatory regions**
 
     - find a promoter or enhancer of a gene and vice-versa
-    - GenEhancer (GeneCards https://www.genecards.org/)<sup>1</sup>
-    - JasparDB (http://jaspar.genereg.net/)
+    - GeneHancer (GeneCards https://www.genecards.org/)<sup>1</sup>
 
 - **CpGs within promoters**
 
     - find what TFs bind there<sup>2</sup>
+    - JasparDB (http://jaspar.genereg.net/)
 
 .footnote[<sup>1</sup> Ref: https://doi.org/10.1093/database/bax028;    
 <sup>2</sup> visualize JasparDB information in ensembl: http://jaspar.genereg.net/genome-tracks/#ensembl_tracks]
@@ -163,7 +163,7 @@ There is more and more tools that focus on the regulatory regions. We can try pa
 - **find enrichment with a special tool**
 
     - very good tutorial: https://tinyurl.com/y69wn7sv
-    - [GREAT predicts functions of cis-regulatory regions](http://great.stanford.edu/public/html/index.php)<sup>1</sup>
+    -     - GREAT (online: http://great.stanford.edu/public/html/ or R package: https://bioconductor.org/packages/release/bioc/html/rGREAT.html)<sup>1</sup>
     - [RegioneR R package](https://bioconductor.org/packages/release/bioc/html/regioneR.html)<sup>2</sup>
     - [MethylGSEA R package](https://bioconductor.org/packages/release/bioc/html/methylGSA.html)<sup>3</sup>
 
@@ -182,3 +182,5 @@ When we have many CpGs, we could check for their enrichment in being part of a c
 - Hetionet
 
 https://het.io/
+
+- _anything else?_
