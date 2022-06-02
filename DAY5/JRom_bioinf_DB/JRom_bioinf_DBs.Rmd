@@ -1,0 +1,184 @@
+---
+title: "How to use results of genetic epidemiological analyses to improve our understanding of biology?"
+author: "Julia Romanowska"
+date: "June 3rd, 2022"
+output:
+  xaringan::moon_reader:
+    css: xaringan-themer.css
+    lib_dir: libs
+    nature:
+      highlightStyle: solarized-light
+      highlightLines: true
+      countIncrementalSlides: false
+    self_contained: true
+fig_width: 13
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.width = 13, results = "hide",
+                      message = FALSE)
+options(htmltools.dir.version = FALSE)
+library(xaringanthemer)
+style_solarized_light()
+xaringanExtra::use_clipboard()
+xaringanExtra::use_fit_screen()
+```
+
+class: left, inverse, bottom
+
+# OVERVIEW
+
+## What kind of results?
+## How to expand the results set?
+## Genetic results
+## Epigenetic results
+## Heterogenous results
+
+---
+
+## What kind of results?
+
+- RR, RRR
+- meQTLs = SNP + CpG
+- DMR / VMR
+- CpGs / regulatory regions / SNPs / genes
+
+    - gene body, promoter, enhancer,
+    - CGI, open sea, CGI shore, CGI shelf
+
+<br><br><br>
+<p style="font-size: small; font-style: italic; text-align: left;">TIP: to view my notes, press P</p>
+
+???
+
+- relative risk (RR):    
+*genetic effect*
+- relative risk ratio (RRR):    
+*interaction effect*
+- methylation quantitative loci (meQTLs):    
+*SNP-CpG pair, where the methylation level on the CpG is dependent on the allele at the SNP locus*
+- differentially / variably methylated regions (DMR / VMR):    
+*set of CpGs where the methylation either distinguishes between phenotype groups (DMR) or has highest variability among a group (VMR)*
+<br>
+- taken together, we get many *CpGs* and *SNPs*, which can be assigned to *genes* or *regulatory regions*, e.g.:
+
+    - gene body, gene promoter (usually right next to their gene), gene enhancers (can be quite far away)
+    - CpG-islands (CGI): *CpG-dense regions*
+    - CGI-shore: *up to 2kb from CGI, usually hypomethylated*
+    - CGI-shelf: *between 2kb and 4kb of CGI*
+    - open sea: *rest of the genome*
+
+---
+
+## How to expand the results set?
+
+- search engines:
+
+    - Omics Discovery Index (https://www.omicsdi.org/)
+    - GWAS catalog (https://www.ebi.ac.uk/gwas/) by EMBL-EBI
+    - EWAS atlas (http://bigd.big.ac.cn/ewas/)
+    - EWAS catalog (http://www.ewascatalog.org/) by Univ.of Bristol, UK
+    - mQTL db (http://www.mqtldb.org/)
+    - OpenTarget (https://www.targetvalidation.org/)
+
+???
+
+Sometimes, we would like to check our method on another dataset - there are more and more datasets freely available, while for some we need to apply to gain access. Some still are not available, but then we can usually find results from a certain analysis ran on them. All these we can search for through various search engines. Each of these mentioned resources has a different focus, but they usually give overlapping results, so it's useful to try several.
+
+---
+
+class: left, inverse, bottom
+
+## How to interpret the result set?
+
+### genetic data (SNPs, genes, proteins)
+### DNA methylation data (CpGs, regions)
+
+???
+
+Let's assume then that we found a decent set of SNPs or CpGs that are somehow significant for our research question. We note them down in the Results section of our manuscript, but then comes the Discussion section - what to write there? How to interpret the results? I will show you several possibilities, first when focusing on the genetics only, and then including also epigenetics.
+
+---
+
+## Genetic results
+
+- **SNPs / CpGs / regions**
+
+    - visualize in ensembl (http://www.ensembl.org)
+
+- **genes => proteins**
+
+    - protein-protein interactions: String DB (https://string-db.org/)
+    - information about proteins: UniProt (https://www.uniprot.org/)
+
+- **genes => GO-terms, biological pathways**
+
+    - enrichment: gProfiler (online https://biit.cs.ut.ee/gprofiler/gost)    
+    ExpressionAtlas (https://www.ebi.ac.uk/gxa/genesetenrichment)    
+    clusterProfiler (R package: https://guangchuangyu.github.io/software/clusterProfiler/)
+    - pathways: ConsensuPathDB (http://consensuspathdb.org/)    
+    Reactome (https://reactome.org/)
+
+- **SNPs/genes => GWAS catalogue or OpenTarget**
+
+    - what are they already associated with?
+
+???
+
+First of all, we can visualize our set of genomic loci - perhaps they cluster somehow? This can be done in ensembl.
+
+If we're interested in proteins that these genes code, we can check whether the genes form an interaction network and check information about specific proteins.
+
+If we want to understand what these genes have in common, perhaps we might check enrichment in gene-ontology terms or biological pathways. This can show whether the majority of the genes are involved in a certain biological process and whether it's significant, i.e., it's less probable that we end up in the same biological process when just choosing genes randomly.
+
+We might also check what is already known about this SNP or gene.
+
+---
+
+## Epigenetic results
+
+- **regulatory regions**
+
+    - find a promoter or enhancer of a gene and vice-versa
+    - GenEhancer (GeneCards https://www.genecards.org/)<sup>1</sup>
+    - JasparDB (http://jaspar.genereg.net/)
+
+- **CpGs within promoters**
+
+    - find what TFs bind there<sup>2</sup>
+
+.footnote[<sup>1</sup> Ref: https://doi.org/10.1093/database/bax028;    
+<sup>2</sup> visualize JasparDB information in ensembl: http://jaspar.genereg.net/genome-tracks/#ensembl_tracks]
+
+???
+
+When it comes to the epigenetic data analysis, one can still try to find a set of genes to go along with interpretation, e.g., by taking the genes nearest the significant CpGs. However, as we know, genes are actually not occupying so much of the whole genome. Moreover, when doing _epi_genetic analysis, we would like to focus on the _epi_genetic processes and these start in the non-gene regions. Therefore, it's best to search for some information about the regulatory regions where the CpGs are located.
+
+There is more and more tools that focus on the regulatory regions. We can try pairing promoters or enhancers with genes they regulate, or try to find which *transcription factors* (TFs) bind in vicinity of a CpG located within a promoter region.
+
+---
+
+## Epigenetic results
+
+- **find enrichment with a special tool**
+
+    - very good tutorial: https://tinyurl.com/y69wn7sv
+    - [GREAT predicts functions of cis-regulatory regions](http://great.stanford.edu/public/html/index.php)<sup>1</sup>
+    - [RegioneR R package](https://bioconductor.org/packages/release/bioc/html/regioneR.html)<sup>2</sup>
+    - [MethylGSEA R package](https://bioconductor.org/packages/release/bioc/html/methylGSA.html)<sup>3</sup>
+
+.footnote[<sup>1</sup> McLean, C. Y., _et al._ (2010). Nature Biotechnology, 28(5), 495–501. https://doi.org/10.1038/nbt.1630;    
+<sup>2</sup> Ref: https://doi.org/10.1093/bioinformatics/btv562;    
+<sup>3</sup> Ref: https://doi.org/10.1093/bioinformatics/bty892]
+
+???
+
+When we have many CpGs, we could check for their enrichment in being part of a certain regulatory region or regulatory process.
+
+---
+
+## BONUS
+
+- Hetionet
+
+https://het.io/

@@ -1,0 +1,383 @@
+---
+title: "Bioinformatics services - exercises"
+author: "Julia Romanowska"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::github_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+library(readr)
+library(dplyr)
+library(tibble)
+library(purrr)
+library(here)
+if(!requireNamespace("qvalue")){
+  BiocManager::install("qvalue", update = FALSE)
+}
+library(qvalue)
+if(!requireNamespace("biomaRt")){
+  BiocManager::install("biomaRt", update = FALSE)
+}
+library(biomaRt)
+
+data_dir <- here("DAY5", "JRom_bioinf_DB", "data")
+```
+
+# Read the data
+
+This was done for you, since the entire dataset is too big.
+
+```{r, eval=FALSE}
+diff_methyl <- read_csv(
+  file.path(data_dir, "diffMethTable_site_cmp13.csv")
+)
+diff_methyl %>% glimpse()
+
+qvals <- qvalue(diff_methyl$diffmeth.p.val)
+
+diff_methyl <- diff_methyl %>%
+  add_column(qval = qvals$qvalues)
+
+# setting here to very low just to get not too many results
+signif_qval <- 0.00001
+diff_methyl_signif <- diff_methyl %>%
+  filter(qval < signif_qval)
+```
+
+You have access to the file that contains only the most significant results
+
+```{r}
+diff_methyl_signif <- read_csv(
+  file.path(data_dir, "diffMethTable.csv")
+)
+diff_methyl_signif %>% glimpse()
+```
+
+Now, `diff_methyl_signif` contains only the selected data.
+
+# Write out results
+
+Some services accept user data, but they require it to be in specific format.
+It's easy to write various formats with R.
+
+```{r}
+# write out BED file
+write_delim(
+  diff_methyl_signif %>%
+    mutate(End = Start + 1) %>%
+    dplyr::select(Chromosome, Start, End, Name = cgid, Score = diffmeth.p.val, Strand),
+  file = file.path(data_dir, "signif_CpGs.BED"),
+  delim = " ",
+  col_names = FALSE
+)
+
+# write out region data
+write_delim(
+  diff_methyl_signif %>%
+    mutate(strand_number = ifelse(Strand == "-", -1, 1)) %>%
+    mutate(Chr = substr(Chromosome, 4, nchar(Chromosome))) %>%
+    mutate(reg = paste0(Chr, ":", Start, ":", Start + 1, ":", strand_number)) %>%
+    dplyr::select(reg),
+  file = file.path(data_dir, "signif_CpGs.regions"),
+  delim = " ",
+  col_names = FALSE
+)
+
+write_delim(
+  diff_methyl_signif %>%
+    mutate(Chr = substr(Chromosome, 4, nchar(Chromosome))) %>%
+    mutate(reg = paste0(Chr, ":", Start, ":", Start + 1)) %>%
+    dplyr::select(reg),
+  file = file.path(data_dir, "signif_CpGs_noStrand.regions"),
+  delim = " ",
+  col_names = FALSE
+)
+```
+
+----
+
+# Web services
+
+We will use the results above to perform several searches online.
+
+## ensembl BioMart - genes
+
+The biomart on [ensembl](http://www.ensembl.org/biomart/martview/) is a web service
+that allows to send batch queries to ensembl and get results in a text format.
+
+We will and use `signif_CpGs.regions` file to extract the genes that lay near CpGs.
+
+Here, you can choose how to do that:
+
+- [through the web browser](#biomart_web) or by [using `biomaRt` package](#biomart_pack).
+
+### biomart on the web {#biomart_web}
+
+- Choose database: Ensembl Genes
+- Choose dataset: Human Genes
+- On the left (blue menu), choose `Filters`, expand `REGION` and select `Multiple regions`, then Browse to the file
+- Next, choose `Attributes` (below `Filters`) and expand `GENE`, then choose the following:
+
+    - Gene stable ID
+    - Protein stable ID
+    - Gene description
+    - Chromosome/scaffold name
+    - Gene start (bp)
+    - Gene end (bp)
+    - Gene name
+
+- Click on `Results` (above `Filters`) and choose to "Export all results to | File | TSV", tick off "Unique results only" and click "Go"
+- Save the file to the disk, we will read it below
+
+### using `biomaRt` package {#biomart_pack}
+
+```{r}
+# check all the servers by running biomaRt::listEnsembl()
+# check all the datasets by running biomaRt::listDatasets(ensembl_mart)
+ensembl_genes <- useEnsembl("genes",
+  dataset = "hsapiens_gene_ensembl",
+  GRCh = 37 # don't use this argument if you want the newest version
+)
+
+# check all the attributes by running biomaRt::listAttributes(ensembl_mart)
+my_attribs <- c(
+  "ensembl_gene_id",
+  "ensembl_peptide_id",
+  "description",
+  "chromosome_name",
+  "start_position",
+  "end_position",
+  "external_gene_name"
+)
+# check all the attributes by running biomaRt::listFilters(ensembl_mart)
+my_filters <- c(
+  "chromosome_name",
+  "start",
+  "end",
+  "strand"
+)
+
+# we need to have an input data that is a data.frame with columns
+#  as in 'my_filters'
+data_in <- diff_methyl_signif %>%
+    mutate(End = Start + 1) %>%
+    dplyr::select(
+      chromosome_name = Chromosome,
+      start = Start,
+      end = End,
+      strand = Strand
+    )
+data_in
+
+out_data_colnames <- c("Gene_ID", "Protein_ID", "Chr", "Start", "End",
+                       "Gene_name", "Gene_descr")
+
+# since this requires internet connection, we will save it in a file after
+#   downloading the first time and read from a file next time;
+#   if we want to update the information, we will need to delete this file
+#   before running the code
+genes_file_out <- file.path(data_dir, "mart_export.txt")
+
+if(!file.exists(genes_file_out)){
+# this might take some time...
+  genes_near_signif_cpgs <- purrr::map(seq_len(nrow(data_in)), function(row){
+    cur_cpg <- as.list(data_in[row, ])
+    cur_out <- biomaRt::getBM(
+      attributes = my_attribs,
+      filters = my_filters,
+      values = cur_cpg,
+      mart = ensembl_genes
+    )
+    if(nrow(cur_out) == 0){
+      return(NULL)
+    }
+    return(cur_out)
+  })
+  genes_near_signif_cpgs <- dplyr::bind_rows(genes_near_signif_cpgs)
+  names(genes_near_signif_cpgs) <- out_data_colnames
+  
+  write_delim(
+    genes_near_signif_cpgs,
+    file = file.path(data_dir, "mart_export.txt"),
+    delim = "\t"
+  )
+}
+```
+
+
+### using results from biomart
+
+```{r}
+# after getting results from ensembl BioMart
+genes_near_signif_cpgs <- read_delim(
+  file = file.path(data_dir, "mart_export.txt"),
+  delim = "\t",
+  col_names = out_data_colnames,
+  skip = 1
+)
+genes_near_signif_cpgs
+
+# let's see how many results per chromosome
+knitr::kable(
+  genes_near_signif_cpgs %>%
+    distinct(Gene_ID, Chr) %>%
+    count(Chr)
+)
+```
+
+To use the results in the next step, we need only a list of the gene names.
+
+```{r}
+write_delim(
+  genes_near_signif_cpgs %>%
+    distinct(Gene_name),
+  file = file.path("data", "genes_near_signif_cpgs.txt"),
+  delim = " ",
+  col_names = FALSE
+)
+```
+
+## STRING - database of protein-protein interactions (PPI)
+
+We can check whether our set of genes is enriched in something specific or has
+other common features or functions by e.g., checking it in [STRING](https://string-db.org/)
+
+- Click on SEARCH
+- Choose `Multiple proteins` in the list to the left
+- Click on the "Browse" button and navigate to `genes_near_signif_cpgs.txt` file
+- Enter `Homo sapiens` in the "Organism" field and click "Search"
+- You will be presented with possible matches to the identifiers that we provided - accept all and continue
+- Explore the network, e.g.,
+
+    - in the "Analysis" tab, check enrichment
+    - in the "Clusters" tab, play with k-means clustering
+    - what is the protein "in the middle"?
+
+### ensembl BioMart - regulatory regions
+
+ensembl browser has many databases - one contains regulatory features of the
+genome (such as promoters and enhancers). Export the regulatory regions that
+are in vicinity of our selected CpGs.
+
+Here, you can choose how to do that:
+
+- [through the web browser](#biomart_regul_web) or by
+[using `biomaRt` package](#biomart_regul_pack).
+
+## biomart on the web {#biomart_regul_web}
+
+- Choose database: Ensembl Regulation
+- Choose dataset: Human Regulatory Features
+- On the left (blue menu), choose `Filters`, expand `REGION` and select `Multiple regions`, then Browse to the file `signif_CpGs_noStrand.regions`
+- Next, choose `Attributes` (below `Filters`) and expand `GENE`, then choose the following:
+
+    - Chromosome/scaffold name
+    - Start (bp)
+    - End (bp)
+    - Feature type
+    - Regulatory stable ID
+    - SO term accession
+
+- Click on `Results` (above `Filters`) and choose to "Export all results to | File | TSV", tick off "Unique results only" and click "Go"
+- Save the file to the disk as `mart_export_regulatory_feat.txt`, we will read it below
+
+### using `biomaRt` package {#biomart_regul_pack}
+
+```{r}
+# check all the servers by running biomaRt::listEnsembl()
+# check all the datasets by running biomaRt::listDatasets(ensembl_mart)
+ensembl_reg <- useEnsembl("regulation",
+  dataset = "hsapiens_regulatory_feature",
+  GRCh = 37 # don't use this argument if you want the newest version
+)
+
+# check all the attributes by running biomaRt::listAttributes(ensembl_mart)
+my_attribs <- c(
+  "chromosome_name",
+  "chromosome_start",
+  "chromosome_end",
+  "feature_type_name",
+  "regulatory_stable_id",
+  "so_accession"
+)
+# check all the attributes by running biomaRt::listFilters(ensembl_mart)
+my_filters <- c(
+  "chromosome_name",
+  "start",
+  "end"
+)
+
+data_in <- diff_methyl_signif %>%
+    mutate(End = Start + 1) %>%
+    dplyr::select(
+      chromosome_name = Chromosome,
+      start = Start,
+      end = End
+    )
+data_in
+
+reg_data_colnames <- c("chr", "start", "end", "feat_type", "reg_ID", "SO_term")
+
+# since this requires internet connection, we will save it in a file after
+#   downloading the first time and read from a file next time;
+#   if we want to update the information, we will need to delete this file
+#   before running the code
+regul_file_out <- file.path(data_dir, "mart_export_regulatory_feat.txt")
+
+if(!file.exists(regul_file_out)){
+# this might take some time...
+  regulatory_near_signif_cpgs <- purrr::map(seq_len(nrow(data_in)), function(row){
+    cur_cpg <- as.list(data_in[row, ])
+    cur_out <- biomaRt::getBM(
+      attributes = my_attribs,
+      filters = my_filters,
+      values = cur_cpg,
+      mart = ensembl_reg
+    )
+    if(nrow(cur_out) == 0){
+      return(NULL)
+    }
+    return(cur_out)
+  })
+  regulatory_near_signif_cpgs <- dplyr::bind_rows(regulatory_near_signif_cpgs)
+  names(regulatory_near_signif_cpgs) <- reg_data_colnames
+  write_delim(
+    regulatory_near_signif_cpgs,
+    file = regul_file_out,
+    delim = "\t"
+  )
+}
+```
+
+### using results from biomart
+
+```{r}
+# after checking regulatory regions
+regulatory_near_signif_cpgs <- read_delim(
+  file = regul_file_out,
+  delim = "\t",
+  skip = 1,
+  col_names = reg_data_colnames
+)
+regulatory_near_signif_cpgs
+regulatory_near_signif_cpgs %>%
+  count(SO_term) %>%
+  left_join(regulatory_near_signif_cpgs %>%
+              distinct(SO_term, feat_type))
+
+regulatory_near_signif_cpgs %>%
+  filter(feat_type == "Enhancer")
+```
+
+How many different regulatory features were found?
+
+## GenEnhancer by GeneCards
+
+Choose one enhancer (by `reg_ID` - this is the ensembl ID of the region) and
+enter it in the "Keywords" search field at https://www.genecards.org/. _(NOTE:
+this is not the main search field, which only searches for gene names)_
+
+What genes were found? Check their Cards and see where are they located
+on the genome in relation to the enhancer you've chosen.
