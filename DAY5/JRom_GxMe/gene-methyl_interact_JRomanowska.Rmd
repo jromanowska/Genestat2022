@@ -36,6 +36,8 @@ class: left, inverse, bottom
 
 I will guide you through the most interesting parts of the methodology we describe in the article, but I encourage you to read it and do not hesitate to contact me if you found any mistakes, bugs, or just want to comment on it. When designing the method and putting it into a paper, we had many discussions and we think that it's generally so difficult to describe, quantify, and interpret results of analyses using DNA methylation data, and we would really like this article to be, apart from a description of a new methodology, an invitation to discussion.
 
+**ADD: when to use these methods - best to check for perinatal diseases, but might be interesting to see how it changes with age, since DNAm is time dependent**
+
 ---
 
 ## Background
